@@ -11,4 +11,5 @@ uvicorn[standard]>=0.32.0
 # Tests
 pytest>=7.0.0
 pytest-cov>=4.0.0
- 
+pyproj>=3.6,<4
+Pillow>=10,<13
