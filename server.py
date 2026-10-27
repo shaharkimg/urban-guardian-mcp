@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.github import GitHubProvider
+from starlette.responses import JSONResponse
 
 
 from govmap_client import (
@@ -42,10 +43,6 @@ from guardian_score import (
     compute_guardian_score,
     explain_plan_risk,
 )
-
-
-import os
-from fastmcp.server.auth import StaticTokenVerifier
 
 
 MCP_NAME = "Urban Guardian"
@@ -75,6 +72,24 @@ auth = PersonalGitHubProvider(
 )
 
 mcp = FastMCP(MCP_NAME, auth=auth)
+
+
+# These routes are intentionally public and contain no credentials.
+# They let us verify that Render has deployed the GitHub OAuth version.
+@mcp.custom_route("/", methods=["GET"])
+async def deployment_status(request):
+    return JSONResponse({
+        "status": "ok",
+        "service": "Urban Guardian MCP",
+        "auth_mode": "github-oauth",
+        "mcp_endpoint": "/mcp",
+        "deployment_marker": "github-oauth-diagnostics-v1",
+    })
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request):
+    return JSONResponse({"status": "ok", "deployment_marker": "github-oauth-diagnostics-v1"})
 
 
 
