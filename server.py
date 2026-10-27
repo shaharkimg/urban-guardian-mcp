@@ -13,7 +13,11 @@ Phase 4: Environmental & Infrastructure — planned
 
 from __future__ import annotations
 
+
+import os
 from fastmcp import FastMCP
+from fastmcp.server.auth import StaticTokenVerifier
+
 
 from govmap_client import (
     AddressNotFoundError,
