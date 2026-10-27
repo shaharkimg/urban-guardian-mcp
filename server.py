@@ -168,6 +168,23 @@ async def health_check(request):
     return JSONResponse({"status": "ok", "deployment_marker": "github-oauth-diagnostics-v1"})
 
 
+@mcp.custom_route("/health/tools", methods=["GET"])
+async def tool_inventory(request):
+    """Read-only diagnostics for verifying active tool registrations, no secrets."""
+    tools = await mcp.get_tools()
+    return JSONResponse({
+        "service": "Urban Guardian MCP",
+        "total_tools": len(tools),
+        "tool_names": sorted(tools.keys()),
+        "expected_govmap_extensions": [
+            "find_parcel_by_gush_helka", "get_parcel_map",
+            "get_parcel_map_image", "get_planning_layers",
+            "get_parcel_planning_layers"
+        ],
+        "version_marker": "parcel-tools-v2"
+    })
+
+
 
 def _geocode_address_impl(address: str) -> dict:
     """Implementation of geocode_address (used by tool and tests)."""
