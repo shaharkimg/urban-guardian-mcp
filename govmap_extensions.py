@@ -232,10 +232,34 @@ def planning_layers(latitude: float, longitude: float, radius_m: int = 20,
         except (httpx.HTTPError, ValueError) as exc:
             out[key] = {"layer_id": layer_id, "label": label, "status": "unavailable",
                         "error": str(exc)[:250]}
+    # Cross-check against the existing GovMap query implementation if the newer
+    # catalog endpoint is inaccessible. It uses the project's WFS/identify routes.
+    fallback = {"status": "not_needed"}
+    if all(entry.get("status") == "unavailable" for entry in out.values()):
+        try:
+            from govmap_client import query_plans_at_coordinates
+            legacy = query_plans_at_coordinates(latitude, longitude, radius_m=radius_m)
+            if legacy.get("plans") or legacy.get("permits"):
+                fallback = {
+                    "status": "data_received",
+                    "source": "govmap_client.query_plans_at_coordinates",
+                    "method": legacy.get("method_used"),
+                    "plans": legacy.get("plans", [])[:40],
+                    "permits": legacy.get("permits", [])[:40],
+                    "note": legacy.get("note"),
+                }
+            else:
+                fallback = {
+                    "status": "no_verified_features",
+                    "source": "govmap_client.query_plans_at_coordinates",
+                    "note": legacy.get("note", "No verified data received"),
+                }
+        except Exception as exc:
+            fallback = {"status": "unavailable", "error": str(exc)[:200]}
     return {
         "location_wgs84": {"latitude": latitude, "longitude": longitude},
         "radius_m_requested": radius_m, "source": GOVMAP_CATALOG_POINT,
-        "layers": out,
+        "layers": out, "fallback_wfs_identify": fallback,
         "warning": "A missing/empty response does not prove no plans or restrictions exist. Verify in Mavat and planning records.",
         "coordinate_system_for_api": "EPSG:3857",
     }
