@@ -68,6 +68,7 @@ auth = PersonalGitHubProvider(
     client_id=os.environ["GITHUB_OAUTH_CLIENT_ID"],
     client_secret=os.environ["GITHUB_OAUTH_CLIENT_SECRET"],
     base_url="https://govmap-claude.onrender.com",
+    allowed_client_redirect_uris=["https://claude.ai/api/mcp/auth_callback"],
     jwt_signing_key=os.environ["JWT_SIGNING_KEY"],
 )
 
