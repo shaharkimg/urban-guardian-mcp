@@ -38,8 +38,25 @@ from guardian_score import (
     explain_plan_risk,
 )
 
+
+import os
+from fastmcp.server.auth import StaticTokenVerifier
+
 MCP_NAME = "Urban Guardian"
-mcp = FastMCP(MCP_NAME)
+
+token = os.environ["MCP_AUTH_TOKEN"]
+
+auth = StaticTokenVerifier(
+    tokens={
+        token: {
+            "sub": "owner",
+            "client_id": "claude"
+        }
+    }
+)
+
+mcp = FastMCP(MCP_NAME, auth=auth)
+
 
 
 def _geocode_address_impl(address: str) -> dict:
