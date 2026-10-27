@@ -1,0 +1,25 @@
+name: GovMap MCP extensions CI
+on:
+  push:
+    paths:
+      - 'govmap_extensions.py'
+      - 'server.py'
+      - 'requirements.txt'
+      - 'tests/test_govmap_extensions.py'
+      - 'scripts/smoke_govmap_extensions.py'
+      - '.github/workflows/govmap-tools-tests.yml'
+  workflow_dispatch:
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q tests/test_govmap_extensions.py
+      - name: Live read-only integration probe (diagnostic; not a deployment blocker)
+        continue-on-error: true
+        run: python scripts/smoke_govmap_extensions.py
