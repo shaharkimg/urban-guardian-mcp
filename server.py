@@ -603,6 +603,32 @@ def get_plan_details(
     return plan_info
 
 
+# Optional, one-shot read-only GovMap smoke probe used to validate live endpoints
+# during deployment. Never enabled unless GOVMAP_SMOKE_ON_START=1 is set in Render.
+if os.environ.get("GOVMAP_SMOKE_ON_START") == "1":
+    import threading
+
+    def _smoke_govmap_once():
+        try:
+            sample = lookup_parcel(2547, 10)
+            print("GOVMAP_SMOKE parcel:", {
+                "found": sample.get("found"),
+                "status": sample.get("status", "ok" if sample.get("found") else "unknown"),
+                "errors": sample.get("errors", [])[:2],
+            }, flush=True)
+            if sample.get("found"):
+                photo = wms_image_for_parcel(2547, 10)
+                print("GOVMAP_SMOKE wms:", photo.get("status"), flush=True)
+            layer_response = query_planning_layers(32.1, 34.8, 20, ["planned_plots"])
+            print("GOVMAP_SMOKE layers:", {
+                k: v["status"] for k, v in layer_response["layers"].items()
+            }, flush=True)
+        except Exception as exc:
+            print("GOVMAP_SMOKE failed:", type(exc).__name__, str(exc)[:160], flush=True)
+
+    threading.Thread(target=_smoke_govmap_once, daemon=True).start()
+
+
 if __name__ == "__main__":
     """Run the MCP server when executed with `uv run server.py` or `python server.py`."""
     mcp.run()
