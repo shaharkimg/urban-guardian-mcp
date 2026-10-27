@@ -25,7 +25,7 @@ from govmap_extensions import (
     wms_image_for_parcel,
 )
 from fastmcp.server.auth.providers.github import GitHubProvider
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, HTMLResponse
 
 
 from govmap_client import (
@@ -56,6 +56,46 @@ MCP_NAME = "Urban Guardian"
 
 
 class PersonalGitHubProvider(GitHubProvider):
+    """Restrict OAuth token usage to the configured GitHub identity.
+
+    FastMCP 2.14.7 can receive a second browser consent submission after the
+    first request has already redirected and completed. Treat stale consent
+    forms as inactive rather than attempting to approve them again.
+    This does NOT grant access, renew tokens, or bypass the consent check.
+    """
+
+    @staticmethod
+    def _stale_consent_response():
+        return HTMLResponse(
+            """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GovMap authorization request no longer active</title></head>
+<body style="font:16px system-ui,sans-serif;max-width:640px;margin:4rem auto;padding:1rem;line-height:1.6">
+<h2>This authorization request is no longer active</h2>
+<p>The request may already have completed in Claude or it may have expired.
+No additional authorization was granted.</p>
+<p>Close this page and check the GovMap Israel connector in Claude.
+If it is not connected, start a new authorization from Claude.</p>
+<p><a href="https://claude.ai">Return to Claude</a></p>
+</body></html>""",
+            status_code=200,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def _show_consent_page(self, request):
+        txn_id = request.query_params.get("txn_id")
+        if not txn_id or not await self._transaction_store.get(key=txn_id):
+            return self._stale_consent_response()
+        return await super()._show_consent_page(request)
+
+    async def _submit_consent(self, request):
+        form = await request.form()
+        txn_id = str(form.get("txn_id", ""))
+        if not txn_id or not await self._transaction_store.get(key=txn_id):
+            return self._stale_consent_response()
+        return await super()._submit_consent(request)
+
     async def load_access_token(self, token: str):
         verified = await super().load_access_token(token)
 
