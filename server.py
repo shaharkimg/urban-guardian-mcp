@@ -17,6 +17,13 @@ from __future__ import annotations
 
 import os
 from fastmcp import FastMCP
+from fastmcp.utilities.types import Image as MCPImage
+from govmap_extensions import (
+    find_parcel as lookup_parcel,
+    planning_layers as query_planning_layers,
+    planning_layers_for_parcel as query_parcel_planning_layers,
+    wms_image_for_parcel,
+)
 from fastmcp.server.auth.providers.github import GitHubProvider
 from starlette.responses import JSONResponse
 
@@ -73,6 +80,74 @@ auth = PersonalGitHubProvider(
 )
 
 mcp = FastMCP(MCP_NAME, auth=auth)
+
+
+
+# Verified GovMap extensions; the existing MCP tools above/below are unchanged.
+@mcp.tool()
+def find_parcel_by_gush_helka(gush: int, helka: int) -> dict:
+    """Locate a parcel by Israeli block (gush) and parcel (helka) numbers.
+
+    Returns its VERIFIED government WFS polygon in EPSG:2039, bounding-box
+    center, source metadata and a direct GovMap map link. Missing data is
+    reported as unavailable/not found; NEVER infer boundaries.
+    """
+    return lookup_parcel(gush, helka)
+
+
+@mcp.tool()
+def get_parcel_map(gush: int, helka: int) -> dict:
+    """Get an official GovMap viewer link focused on an exact verified parcel.
+
+    This is the interactive official GovMap viewer with cadastral layers.
+    Pair with get_parcel_map_image for a government WMS raster image.
+    """
+    parcel = lookup_parcel(gush, helka)
+    if not parcel.get("found"):
+        return parcel
+    return {
+        "found": True, "gush": gush, "helka": helka,
+        "govmap_url": parcel["map_url"],
+        "center_wgs84": parcel["center_wgs84"],
+        "source": parcel["source"],
+        "note": "Official GovMap map viewer; turn on parcel layers if not visible.",
+    }
+
+
+@mcp.tool()
+def get_parcel_map_image(gush: int, helka: int, background: str = "white"):
+    """Return REAL PNG from GovMap's government cadastral WMS, with official
+    parcel polygon outlined in red; NOT an AI rendering or portal screenshot.
+
+    If the official WMS cannot be reached, returns an explicit error and
+    a GovMap map URL instead of fabricating an image.
+    """
+    result = wms_image_for_parcel(gush, helka, background=background)
+    if result.get("status") == "ok":
+        return MCPImage(data=result["image"], format="png")
+    return result
+
+
+@mcp.tool()
+def get_planning_layers(latitude: float, longitude: float,
+                        radius_m: int = 20, layers: list[str] | None = None) -> dict:
+    """Query live GovMap planning layer IDs near a WGS84 coordinate.
+
+    Allowed layers: tabaot, planned_plots, plan_boundaries. Returns the
+    government's raw layer response and per-layer status; empty results do not
+    imply no planning restrictions. radius_m range: 1..500.
+    """
+    return query_planning_layers(latitude, longitude, radius_m=radius_m, layers=layers)
+
+
+@mcp.tool()
+def get_parcel_planning_layers(gush: int, helka: int, radius_m: int = 20,
+                              layers: list[str] | None = None) -> dict:
+    """Query live GovMap planning layers at a verified parcel's approximate
+    bounding-box center. For large plots this point query is NOT full polygon
+    coverage; always verify zoning and plans with the official planning file.
+    """
+    return query_parcel_planning_layers(gush, helka, radius_m=radius_m, layers=layers)
 
 
 # These routes are intentionally public and contain no credentials.
