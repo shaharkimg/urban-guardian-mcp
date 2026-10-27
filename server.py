@@ -14,9 +14,10 @@ Phase 4: Environmental & Infrastructure — planned
 from __future__ import annotations
 
 
+
 import os
 from fastmcp import FastMCP
-from fastmcp.server.auth import StaticTokenVerifier
+from fastmcp.server.auth.providers.github import GitHubProvider
 
 
 from govmap_client import (
@@ -46,17 +47,31 @@ from guardian_score import (
 import os
 from fastmcp.server.auth import StaticTokenVerifier
 
+
 MCP_NAME = "Urban Guardian"
 
-token = os.environ["MCP_AUTH_TOKEN"]
 
-auth = StaticTokenVerifier(
-    tokens={
-        token: {
-            "sub": "owner",
-            "client_id": "claude"
-        }
-    }
+class PersonalGitHubProvider(GitHubProvider):
+    async def load_access_token(self, token: str):
+        verified = await super().load_access_token(token)
+
+        if verified is None:
+            return None
+
+        allowed_login = os.environ["ALLOWED_GITHUB_LOGIN"]
+        actual_login = (verified.claims or {}).get("login", "")
+
+        if actual_login.lower() != allowed_login.strip().lower():
+            return None
+
+        return verified
+
+
+auth = PersonalGitHubProvider(
+    client_id=os.environ["GITHUB_OAUTH_CLIENT_ID"],
+    client_secret=os.environ["GITHUB_OAUTH_CLIENT_SECRET"],
+    base_url="https://govmap-claude.onrender.com",
+    jwt_signing_key=os.environ["JWT_SIGNING_KEY"],
 )
 
 mcp = FastMCP(MCP_NAME, auth=auth)
